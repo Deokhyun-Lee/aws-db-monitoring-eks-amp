@@ -1,0 +1,19 @@
+# 로컬 검증용 Collector: 서비스가 보낸 Application Signals 지표와 span을 JSON 파일로 남긴다.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  file/metrics:
+    path: /out/metrics.json
+  file/traces:
+    path: /out/traces.json
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [file/metrics]
+    traces:
+      receivers: [otlp]
+      exporters: [file/traces]

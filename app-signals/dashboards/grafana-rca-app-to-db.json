@@ -1,0 +1,1271 @@
+{
+  "title": "RCA: 앱 → DB (Application Signals + DB 엔진 지표)",
+  "uid": "shop-rca-app-to-db",
+  "tags": [
+    "application-signals",
+    "rca",
+    "db-monitoring"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "description": "위에서 아래로 읽습니다: ① 어느 서비스가 나빠졌나 → ② 어느 의존성 호출이 나빠졌나 → ③ 그 DB 엔진에서 무슨 일이 있었나 → ④ DB가 아니라 앱 자체(CPU)인가",
+  "templating": {
+    "list": [
+      {
+        "name": "cw",
+        "label": "CloudWatch",
+        "type": "datasource",
+        "query": "cloudwatch",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "amp",
+        "label": "AMP",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "textbox",
+        "query": "eks:integrated-db-monitoring-eks/shop",
+        "current": {
+          "text": "eks:integrated-db-monitoring-eks/shop",
+          "value": "eks:integrated-db-monitoring-eks/shop"
+        },
+        "hide": 0
+      },
+      {
+        "name": "cluster",
+        "label": "EKS cluster",
+        "type": "textbox",
+        "query": "integrated-db-monitoring-eks",
+        "current": {
+          "text": "integrated-db-monitoring-eks",
+          "value": "integrated-db-monitoring-eks"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "① 골든 지표 — Application Signals (지연·트래픽·오류)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "서비스 지연 p99",
+      "description": "Application Signals 서비스 지표 [Environment, Service]. RCA는 진입 서비스(order-api)의 지연·Fault에서 시작합니다.",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "inventory-service"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "inventory-service"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "payment-service"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "payment-service"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "요청 수 (분당)",
+      "description": "총 응답 수 = SampleCount(Latency) (AWS 문서 기준)",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "inventory-service"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "inventory-service"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "payment-service"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "payment-service"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Fault (5xx·span 오류, 분당)",
+      "description": "",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Fault",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Fault",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "inventory-service"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "inventory-service"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Fault",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "payment-service"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "payment-service"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "② 의존성 — 어느 호출이 느려졌나 (서비스 → DB·서비스)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "DB 의존성 지연 p99",
+      "description": "의존성 지표 [Environment, Service, RemoteService]. RemoteService는 span의 db.system 값(mysql·postgresql·mssql·redis)",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "mysql"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → mysql"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "redis"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → redis"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "inventory-service",
+            "RemoteService": "postgresql"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "inventory-service → postgresql"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "payment-service",
+            "RemoteService": "mssql"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "payment-service → mssql"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "DB 의존성 Fault (분당)",
+      "description": "",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 10,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Fault",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "mysql"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → mysql"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Fault",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "redis"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → redis"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Fault",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "inventory-service",
+            "RemoteService": "postgresql"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "inventory-service → postgresql"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Fault",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "payment-service",
+            "RemoteService": "mssql"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "payment-service → mssql"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "서비스 간 호출 지연 p99 / 호출 수",
+      "description": "호출 수가 몇 배로 뛰면 상위의 캐시 미스·재시도를 의심합니다(cache-stampede 시나리오)",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 10,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "inventory-service"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → inventory-service p99"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "payment-service"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → payment-service p99"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "inventory-service"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → inventory-service 호출 수"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "Latency",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api",
+            "RemoteService": "payment-service"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api → payment-service 호출 수"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "③ DB 엔진 — 왜 느려졌나 (AMP, 이 저장소 exporter 지표)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "MySQL 행 잠금",
+      "description": "mysql-lock 시나리오에서 오릅니다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${amp}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum by (db_instance) (rate(mysql_global_status_innodb_row_lock_waits[1m]))",
+          "legendFormat": "row lock waits/s {{db_instance}}",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "max by (db_instance) (mysql_global_status_innodb_row_lock_current_waits)",
+          "legendFormat": "current waits {{db_instance}}",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "max by (db_instance) (mysql_global_status_threads_running)",
+          "legendFormat": "threads running {{db_instance}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "PostgreSQL 순차 스캔·세션",
+      "description": "pg-slow-query(전체 스캔)에서 seq scan rows가 오릅니다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${amp}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 19,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum by (db_instance) (rate(pg_stat_user_tables_seq_tup_read[1m]))",
+          "legendFormat": "seq scan rows/s {{db_instance}}",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum by (db_instance) (pg_stat_activity_count{state=\"active\"})",
+          "legendFormat": "active {{db_instance}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "SQL Server 차단·처리량",
+      "description": "suspended·LCK 대기는 custom-metrics 모듈(mssql-custom-collectors.yaml)을 적용해야 나옵니다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${amp}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum by (db_instance) (mssql_active_requests_by_status{status=\"suspended\"})",
+          "legendFormat": "suspended {{db_instance}}",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum by (db_instance) (rate(mssql_wait_stats_wait_time_ms{wait_category=\"Lock\"}[1m]))",
+          "legendFormat": "LCK wait ms/s {{db_instance}}",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum by (db_instance) (rate(mssql_batch_requests[1m]))",
+          "legendFormat": "batch req/s {{db_instance}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Valkey 적중률·미스",
+      "description": "cache-stampede에서 적중률이 떨어지고 미스가 오릅니다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${amp}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 19,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum(rate(redis_keyspace_hits_total[1m])) / (sum(rate(redis_keyspace_hits_total[1m])) + sum(rate(redis_keyspace_misses_total[1m])))",
+          "legendFormat": "hit ratio",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${amp}"
+          },
+          "expr": "sum(rate(redis_keyspace_misses_total[1m]))",
+          "legendFormat": "misses/s",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "④ 포화 — 앱 자체가 원인인가 (DB 의존성은 그대로인데 지연이 늘 때)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Python 프로세스 CPU (Application Signals 런타임 지표)",
+      "description": "app-cpu 시나리오에서 inventory-service가 오릅니다. Node.js(payment-service)는 런타임 지표가 없습니다",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "PythonProcessCpuUtilization",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "order-api"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ApplicationSignals",
+          "metricName": "PythonProcessCpuUtilization",
+          "dimensions": {
+            "Environment": "$environment",
+            "Service": "inventory-service"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "inventory-service"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Pod CPU (Container Insights)",
+      "description": "",
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cw}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ContainerInsights",
+          "metricName": "pod_cpu_utilization",
+          "dimensions": {
+            "ClusterName": "$cluster",
+            "Namespace": "shop",
+            "PodName": "order-api"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "order-api"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ContainerInsights",
+          "metricName": "pod_cpu_utilization",
+          "dimensions": {
+            "ClusterName": "$cluster",
+            "Namespace": "shop",
+            "PodName": "inventory-service"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "inventory-service"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${cw}"
+          },
+          "queryMode": "Metrics",
+          "namespace": "ContainerInsights",
+          "metricName": "pod_cpu_utilization",
+          "dimensions": {
+            "ClusterName": "$cluster",
+            "Namespace": "shop",
+            "PodName": "payment-service"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "region": "default",
+          "matchExact": true,
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "id": "",
+          "expression": "",
+          "label": "payment-service"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

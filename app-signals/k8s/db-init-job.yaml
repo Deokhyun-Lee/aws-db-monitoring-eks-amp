@@ -1,0 +1,20 @@
+# 샘플 서비스용 DB·사용자·테이블 생성 (한 번 실행). 마스터 자격 증명은 일회용 Secret(shop-db-master)으로 받고
+# deploy-app-signals.sh가 Job이 끝나면 지웁니다. 계측 주석이 없어 Application Signals에 나오지 않습니다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: shop-db-init
+  namespace: shop
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-init
+          image: ${IMAGE_REGISTRY}/db-init:${IMAGE_TAG}
+          envFrom:
+            - secretRef: { name: shop-db-master }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }

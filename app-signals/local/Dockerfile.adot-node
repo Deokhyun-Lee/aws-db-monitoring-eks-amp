@@ -1,0 +1,7 @@
+# 로컬 검증 전용: payment-service에 ADOT Node.js 자동 계측을 얹는다 (EKS에서는 add-on이 주입).
+ARG BASE
+FROM ${BASE}
+USER root
+RUN npm install --no-audit --no-fund @aws/aws-distro-opentelemetry-node-autoinstrumentation && npm cache clean --force
+USER node
+CMD ["node", "--require", "@aws/aws-distro-opentelemetry-node-autoinstrumentation/register", "index.js"]

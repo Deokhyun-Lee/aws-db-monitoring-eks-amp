@@ -546,6 +546,7 @@ aws-db-monitoring-eks-amp/
 │   ├── cloudwatch-dashboard.json      # CloudWatch 메트릭 Grafana 대시보드
 │   ├── mysql-dashboard.json           # MySQL Exporter 대시보드
 │   └── postgresql-dashboard.json      # PostgreSQL Exporter 대시보드
+├── app-signals/                       # (확장) CloudWatch Application Signals + 앱→DB RCA, app-signals/README.md
 ├── deploy-all.sh                      # 원클릭 전체 배포 스크립트
 ├── cleanup.sh                         # 전체 리소스 정리 스크립트
 └── Makefile                           # make 명령으로 쉬운 배포

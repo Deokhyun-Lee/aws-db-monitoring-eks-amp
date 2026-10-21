@@ -1,0 +1,10 @@
+# 로컬 검증용 Prometheus: 이 저장소가 쓰는 exporter 3종을 긁는다. db_instance 라벨은 RCA의 인스턴스 매처와 같은 이름.
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: mysql
+    static_configs: [{ targets: ["mysqld-exporter:9104"], labels: { db_instance: mysql } }]
+  - job_name: postgres
+    static_configs: [{ targets: ["postgres-exporter:9187"], labels: { db_instance: postgres } }]
+  - job_name: valkey
+    static_configs: [{ targets: ["redis-exporter:9121"], labels: { db_instance: valkey } }]

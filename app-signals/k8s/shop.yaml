@@ -1,0 +1,192 @@
+# Application Signals 샘플 서비스 3개 + 트래픽 생성기.
+# deploy-app-signals.sh가 envsubst로 ${IMAGE_REGISTRY}, ${IMAGE_TAG}를 채워 적용합니다.
+# Secret(shop-*-db, shop-chaos)은 스크립트가 만듭니다. 이 파일에는 자격 증명이 없습니다.
+#
+# 자동 계측: Pod 템플릿의 instrumentation.opentelemetry.io/inject-python|inject-nodejs 주석을 보고
+# CloudWatch Observability add-on이 ADOT SDK를 주입합니다. Service 이름은 OTEL_SERVICE_NAME,
+# Environment는 기본값 eks:<클러스터>/shop 으로 잡힙니다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shop
+---
+# ---------------------------------------------------------------- order-api (Python, Aurora MySQL + Valkey)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-api
+  namespace: shop
+  labels: { app: order-api }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: order-api }
+  template:
+    metadata:
+      labels: { app: order-api }
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "true"
+    spec:
+      containers:
+        - name: order-api
+          image: ${IMAGE_REGISTRY}/order-api:${IMAGE_TAG}
+          ports: [{ containerPort: 8080, name: http }]
+          env:
+            - { name: OTEL_SERVICE_NAME, value: order-api }
+            # gunicorn(pre-fork): 워커에서 계측을 초기화 (gunicorn.conf.py의 post_fork와 짝)
+            - { name: OTEL_AWS_PYTHON_DEFER_TO_WORKERS_ENABLED, value: "true" }
+            - { name: PYTHONPATH, value: /app }
+            - { name: INVENTORY_URL, value: "http://inventory-service:8080" }
+            - { name: PAYMENT_URL, value: "http://payment-service:8080" }
+          envFrom:
+            - secretRef: { name: shop-order-api-db }
+            - secretRef: { name: shop-chaos }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: order-api, namespace: shop }
+spec:
+  selector: { app: order-api }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+# 장애 시나리오 클라이언트가 모든 Pod를 찾을 때 쓰는 헤드리스 서비스
+apiVersion: v1
+kind: Service
+metadata: { name: order-api-pods, namespace: shop }
+spec:
+  clusterIP: None
+  selector: { app: order-api }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+# ---------------------------------------------------------------- inventory-service (Python, Aurora PostgreSQL)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: shop
+  labels: { app: inventory-service }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: inventory-service }
+  template:
+    metadata:
+      labels: { app: inventory-service }
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "true"
+    spec:
+      containers:
+        - name: inventory-service
+          image: ${IMAGE_REGISTRY}/inventory-service:${IMAGE_TAG}
+          ports: [{ containerPort: 8080, name: http }]
+          env:
+            - { name: OTEL_SERVICE_NAME, value: inventory-service }
+            - { name: OTEL_AWS_PYTHON_DEFER_TO_WORKERS_ENABLED, value: "true" }
+            - { name: PYTHONPATH, value: /app }
+          envFrom:
+            - secretRef: { name: shop-inventory-db }
+            - secretRef: { name: shop-chaos }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: inventory-service, namespace: shop }
+spec:
+  selector: { app: inventory-service }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: inventory-service-pods, namespace: shop }
+spec:
+  clusterIP: None
+  selector: { app: inventory-service }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+# ---------------------------------------------------------------- payment-service (Node.js, RDS for SQL Server)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: shop
+  labels: { app: payment-service }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: payment-service }
+  template:
+    metadata:
+      labels: { app: payment-service }
+      annotations:
+        instrumentation.opentelemetry.io/inject-nodejs: "true"
+    spec:
+      containers:
+        - name: payment-service
+          image: ${IMAGE_REGISTRY}/payment-service:${IMAGE_TAG}
+          ports: [{ containerPort: 8080, name: http }]
+          env:
+            - { name: OTEL_SERVICE_NAME, value: payment-service }
+          envFrom:
+            - secretRef: { name: shop-payment-db }
+            - secretRef: { name: shop-chaos }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: payment-service, namespace: shop }
+spec:
+  selector: { app: payment-service }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: payment-service-pods, namespace: shop }
+spec:
+  clusterIP: None
+  selector: { app: payment-service }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+# ---------------------------------------------------------------- traffic-generator (계측 안 함)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-generator
+  namespace: shop
+  labels: { app: traffic-generator }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: traffic-generator }
+  template:
+    metadata:
+      labels: { app: traffic-generator }
+    spec:
+      containers:
+        - name: traffic-generator
+          image: ${IMAGE_REGISTRY}/traffic-generator:${IMAGE_TAG}
+          env:
+            - { name: TARGET_URL, value: "http://order-api:8080" }
+            - { name: RPS, value: "5" }
+            - name: POD_NAMESPACE
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+          envFrom:
+            - secretRef: { name: shop-chaos }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }

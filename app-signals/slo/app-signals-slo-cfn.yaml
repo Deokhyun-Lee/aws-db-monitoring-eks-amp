@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Application Signals SLOs for the sample shop services (order-api, payment-service) and an optional
+  CloudWatch alarm that sends order-api faults to an existing SNS topic (alerting/sns-topics-cfn.yaml).
+  Deploy only after the services have reported metrics for at least 10 minutes: Application Signals rejects
+  SLOs on operations that have not reported standard metrics yet.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: integrated-db-monitoring-eks
+    Description: EKS cluster name (the Environment is eks:<ClusterName>/<Namespace>)
+  Namespace:
+    Type: String
+    Default: shop
+  OrderLatencyThresholdMs:
+    Type: Number
+    Default: 1000
+    Description: p99 latency threshold for order-api POST /orders (ms)
+  PaymentLatencyThresholdMs:
+    Type: Number
+    Default: 1000
+    Description: p99 latency threshold for payment-service POST /payments (ms)
+  AvailabilityThreshold:
+    Type: Number
+    Default: 99
+    Description: Per-period availability threshold (%)
+  AttainmentGoal:
+    Type: Number
+    Default: 99
+    Description: Share of good periods over the rolling 1-day interval (%)
+  AlarmTopicArn:
+    Type: String
+    Default: ''
+    Description: Optional SNS topic ARN (for example the Warning topic from alerting/sns-topics-cfn.yaml)
+
+Conditions:
+  HasAlarmTopic: !Not [!Equals [!Ref AlarmTopicArn, '']]
+
+Resources:
+  OrderLatencySlo:
+    Type: AWS::ApplicationSignals::ServiceLevelObjective
+    Properties:
+      Name: shop-order-api-post-orders-latency
+      Description: order-api POST /orders p99 latency
+      Sli:
+        SliMetric:
+          KeyAttributes:
+            Type: Service
+            Name: order-api
+            Environment: !Sub 'eks:${ClusterName}/${Namespace}'
+          OperationName: POST /orders
+          MetricType: LATENCY
+          Statistic: p99
+          PeriodSeconds: 60
+        MetricThreshold: !Ref OrderLatencyThresholdMs
+        ComparisonOperator: LessThanOrEqualTo
+      Goal:
+        Interval:
+          RollingInterval:
+            DurationUnit: DAY
+            Duration: 1
+        AttainmentGoal: !Ref AttainmentGoal
+        WarningThreshold: 50
+      BurnRateConfigurations:
+        - LookBackWindowMinutes: 60
+
+  OrderAvailabilitySlo:
+    Type: AWS::ApplicationSignals::ServiceLevelObjective
+    Properties:
+      Name: shop-order-api-post-orders-availability
+      Description: order-api POST /orders availability (5xx and span errors count as faults)
+      Sli:
+        SliMetric:
+          KeyAttributes:
+            Type: Service
+            Name: order-api
+            Environment: !Sub 'eks:${ClusterName}/${Namespace}'
+          OperationName: POST /orders
+          MetricType: AVAILABILITY
+          PeriodSeconds: 60
+        MetricThreshold: !Ref AvailabilityThreshold
+        ComparisonOperator: GreaterThanOrEqualTo
+      Goal:
+        Interval:
+          RollingInterval:
+            DurationUnit: DAY
+            Duration: 1
+        AttainmentGoal: !Ref AttainmentGoal
+        WarningThreshold: 50
+      BurnRateConfigurations:
+        - LookBackWindowMinutes: 60
+
+  PaymentLatencySlo:
+    Type: AWS::ApplicationSignals::ServiceLevelObjective
+    Properties:
+      Name: shop-payment-service-post-payments-latency
+      Description: payment-service POST /payments p99 latency
+      Sli:
+        SliMetric:
+          KeyAttributes:
+            Type: Service
+            Name: payment-service
+            Environment: !Sub 'eks:${ClusterName}/${Namespace}'
+          OperationName: POST /payments
+          MetricType: LATENCY
+          Statistic: p99
+          PeriodSeconds: 60
+        MetricThreshold: !Ref PaymentLatencyThresholdMs
+        ComparisonOperator: LessThanOrEqualTo
+      Goal:
+        Interval:
+          RollingInterval:
+            DurationUnit: DAY
+            Duration: 1
+        AttainmentGoal: !Ref AttainmentGoal
+        WarningThreshold: 50
+
+  # order-api POST /orders 5xx(Fault)가 3분 연속 5% 이상이면 SNS로 (RCA 시작 신호)
+  OrderFaultAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarmTopic
+    Properties:
+      AlarmName: shop-order-api-post-orders-fault-rate
+      AlarmDescription: >-
+        order-api POST /orders fault rate >= 5% for 3 minutes. Next step:
+        python app-signals/rca/rca.py --environment eks:<cluster>/shop --service order-api
+        --operation "POST /orders" --minutes 15
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 5
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopicArn]
+      OKActions: [!Ref AlarmTopicArn]
+      Metrics:
+        - Id: faults
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: ApplicationSignals
+              MetricName: Fault
+              Dimensions:
+                - { Name: Environment, Value: !Sub 'eks:${ClusterName}/${Namespace}' }
+                - { Name: Service, Value: order-api }
+                - { Name: Operation, Value: POST /orders }
+            Period: 60
+            Stat: Sum
+        - Id: requests
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: ApplicationSignals
+              MetricName: Latency
+              Dimensions:
+                - { Name: Environment, Value: !Sub 'eks:${ClusterName}/${Namespace}' }
+                - { Name: Service, Value: order-api }
+                - { Name: Operation, Value: POST /orders }
+            Period: 60
+            Stat: SampleCount
+        - Id: faultRate
+          Label: order-api POST /orders fault rate (%)
+          ReturnData: true
+          Expression: 'IF(requests > 0, 100 * faults / requests, 0)'
+
+Outputs:
+  OrderLatencySloArn:
+    Value: !Ref OrderLatencySlo
+  OrderAvailabilitySloArn:
+    Value: !Ref OrderAvailabilitySlo
+  PaymentLatencySloArn:
+    Value: !Ref PaymentLatencySlo

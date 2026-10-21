@@ -1,0 +1,17 @@
+{
+  "name": "payment-service",
+  "version": "1.0.0",
+  "description": "Application Signals demo: payment service on RDS for SQL Server",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "4.22.3",
+    "mssql": "11.0.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,8 @@
+# 로컬 검증 전용: 서비스 이미지에 ADOT Python 배포판을 얹어 EKS 주입과 같은 방식(opentelemetry-instrument + post_fork)으로 띄운다.
+# aws-opentelemetry-distro는 Flask·requests·pymysql·psycopg2·redis 등 계측 패키지를 의존성으로 함께 설치한다.
+ARG BASE
+FROM ${BASE}
+USER root
+RUN pip install --no-cache-dir aws-opentelemetry-distro
+USER 65534
+CMD ["opentelemetry-instrument", "gunicorn", "-c", "gunicorn.conf.py", "app:app"]

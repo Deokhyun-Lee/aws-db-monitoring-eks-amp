@@ -1,0 +1,159 @@
+# 로컬 검증: 샘플 서비스 + ADOT SDK(실제 패키지) + OTel Collector(파일로 기록) + DB 4종 컨테이너.
+# EKS의 CloudWatch agent 자리에 Collector를 두어, 서비스가 Application Signals용 지표·span을 만드는지 확인합니다.
+# AWS로는 아무것도 보내지 않습니다. 실행: ./verify.sh (README의 '로컬 검증' 참고)
+# 암호는 로컬 컨테이너 전용 값입니다(LOCAL_* 환경 변수로 바꿀 수 있음).
+name: shop-local
+
+x-adot-python: &adot-python
+  OTEL_PYTHON_DISTRO: aws_distro
+  OTEL_PYTHON_CONFIGURATOR: aws_configurator
+  OTEL_AWS_APPLICATION_SIGNALS_ENABLED: "true"
+  OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT: http://otelcol:4318/v1/metrics
+  OTEL_AWS_APPLICATION_SIGNALS_EXPORT_INTERVAL: "10000"
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otelcol:4318/v1/traces
+  OTEL_TRACES_SAMPLER: always_on
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+  OTEL_AWS_PYTHON_DEFER_TO_WORKERS_ENABLED: "true"
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local
+  PYTHONPATH: /app
+
+services:
+  mysql:
+    image: public.ecr.aws/docker/library/mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_MYSQL_PASSWORD:-LocalMysqlPass1}
+    healthcheck: { test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${LOCAL_MYSQL_PASSWORD:-LocalMysqlPass1}"], interval: 5s, retries: 30 }
+  postgres:
+    image: public.ecr.aws/docker/library/postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${LOCAL_PG_PASSWORD:-LocalPgPass1}
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 5s, retries: 30 }
+  valkey:
+    image: docker.io/valkey/valkey:7.2
+    healthcheck: { test: ["CMD", "valkey-cli", "ping"], interval: 5s, retries: 30 }
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${LOCAL_MSSQL_PASSWORD:-LocalMssqlPass1}
+      MSSQL_PID: Express
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      retries: 30
+
+  otelcol:
+    image: docker.io/otel/opentelemetry-collector-contrib:0.137.0
+    user: "0:0"
+    command: ["--config=/etc/otelcol.yaml"]
+    volumes:
+      - ./otelcol.yaml:/etc/otelcol.yaml:ro
+      - ./out:/out
+
+  db-init:
+    image: shop-local/db-init
+    depends_on:
+      mysql: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      mssql: { condition: service_healthy }
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_MASTER_USER: root
+      MYSQL_MASTER_PASSWORD: ${LOCAL_MYSQL_PASSWORD:-LocalMysqlPass1}
+      MYSQL_APP_PASSWORD: LocalShopAppPass1
+      PG_HOST: postgres
+      PG_SSLMODE: disable
+      PG_MASTER_USER: postgres
+      PG_MASTER_PASSWORD: ${LOCAL_PG_PASSWORD:-LocalPgPass1}
+      PG_APP_PASSWORD: LocalInventoryAppPass1
+      MSSQL_HOST: mssql
+      MSSQL_MASTER_USER: sa
+      MSSQL_MASTER_PASSWORD: ${LOCAL_MSSQL_PASSWORD:-LocalMssqlPass1}
+      MSSQL_APP_PASSWORD: LocalPaymentAppPass1
+      EVENT_SEED_ROWS: "1000000"
+
+  order-api:
+    image: shop-local/order-api-adot
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+      valkey: { condition: service_healthy }
+      otelcol: { condition: service_started }
+    ports: ["28080:8080"]
+    environment:
+      <<: *adot-python
+      OTEL_SERVICE_NAME: order-api
+      MYSQL_HOST: mysql
+      MYSQL_USER: shop_app
+      MYSQL_PASSWORD: LocalShopAppPass1
+      VALKEY_HOST: valkey
+      VALKEY_TLS: "false"
+      INVENTORY_URL: http://inventory-service:8080
+      PAYMENT_URL: http://payment-service:8080
+      CHAOS_TOKEN: local-chaos-token
+      CHAOS_LOCK_HOLD_SECONDS: "6"
+
+  inventory-service:
+    image: shop-local/inventory-service-adot
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+      otelcol: { condition: service_started }
+    ports: ["28081:8080"]
+    environment:
+      <<: *adot-python
+      OTEL_SERVICE_NAME: inventory-service
+      PG_HOST: postgres
+      PG_SSLMODE: disable
+      PG_USER: inventory_app
+      PG_PASSWORD: LocalInventoryAppPass1
+      CHAOS_TOKEN: local-chaos-token
+
+  payment-service:
+    image: shop-local/payment-service-adot
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+      otelcol: { condition: service_started }
+    ports: ["28082:8080"]
+    environment:
+      OTEL_SERVICE_NAME: payment-service
+      OTEL_AWS_APPLICATION_SIGNALS_ENABLED: "true"
+      OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT: http://otelcol:4318/v1/metrics
+      OTEL_AWS_APPLICATION_SIGNALS_EXPORT_INTERVAL: "10000"
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otelcol:4318/v1/traces
+      OTEL_TRACES_SAMPLER: always_on
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local
+      MSSQL_HOST: mssql
+      MSSQL_USER: payment_app
+      MSSQL_PASSWORD: LocalPaymentAppPass1
+      MSSQL_ENCRYPT: "false"
+      CHAOS_TOKEN: local-chaos-token
+      CHAOS_LOCK_HOLD_SECONDS: "6"
+
+  # ---------------------------------------------------------------- DB 엔진 지표 (RCA의 엔진 근거 검증용)
+  mysqld-exporter:
+    image: docker.io/prom/mysqld-exporter:v0.15.1
+    depends_on: { mysql: { condition: service_healthy } }
+    command: ["--mysqld.address=mysql:3306", "--mysqld.username=root"]
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${LOCAL_MYSQL_PASSWORD:-LocalMysqlPass1}
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    depends_on: { db-init: { condition: service_completed_successfully } }
+    environment:
+      DATA_SOURCE_NAME: postgresql://postgres:${LOCAL_PG_PASSWORD:-LocalPgPass1}@postgres:5432/inventory?sslmode=disable
+  redis-exporter:
+    image: docker.io/oliver006/redis_exporter:v1.62.0
+    depends_on: { valkey: { condition: service_healthy } }
+    environment:
+      REDIS_ADDR: redis://valkey:6379
+  prometheus:
+    image: docker.io/prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus.yaml", "--storage.tsdb.retention.time=1d"]
+    ports: ["29090:9090"]
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus.yaml:ro
